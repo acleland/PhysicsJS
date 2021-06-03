@@ -97,8 +97,14 @@ function World(width, height) {
     this.width = width;
     this.height = height;
     this.bodies = [];
-    this.add = (body) => {
+    this.addBody = (body) => {
         this.bodies.push(body);
+    }
+    this.update = function(dt) {
+        for (let i = 0; i < this.bodies.length; i++) {
+            this.bodies[i].update(dt);
+            handleCollisions(this.bodies[i], this.bodies);
+        }
     }
 }
 
@@ -193,37 +199,16 @@ function RigidBody(x, y, shape, m=1, dx=0, dy=0) {
     }
 }
 
-function CircleBody(x, y, r, m=1, dx=0, dy=0) {
-    this.pos = new Vector(x,y);
-    this.vel = new Vector(dx, dy);
-    this.acc = new Vector(0,0);
+function CircleBody(x, y, r, m, vx, vy) {
+    this.pos = new Vector(x, y);
+    this.vel = new Vector(vx, vy);
+    this.acc = new Vector(0, 0);
     this.radius = r;
     this.mass = m;
-    this.dx = dx;
-    this.dy = dx;
 
-    this.update = function() {
-        this.vel.inc(this.acc);
-        this.pos.inc(this.vel);
-        
-        if (this.pos.x + this.radius >= canvas.width) {
-            this.pos.x = canvas.width - this.radius - 1;
-            this.vel.x *= -1
-        }
-        if (this.pos.x - this.radius <= 0) {
-            this.pos.x = this.radius + 1;
-            this.vel.x *= -1
-        }   
-    
-        if (this.pos.y + this.radius >= canvas.height) {
-            this.pos.y = canvas.height - this.radius - 1;
-            this.vel.y *= -1
-        }
-        if (this.pos.y - this.radius <= 0) {
-            this.pos.y = this.radius + 1;
-            this.vel.y *= -1
-        } 
-        
+    this.update = function(dt) {
+        this.vel.inc(this.acc.scalarMult(dt));
+        this.pos.inc(this.vel.scalarMult(dt));
     }
 
     this.resetOnCollision = function(other) {

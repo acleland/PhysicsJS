@@ -9,20 +9,19 @@ c.fillStyle = 'rgba(255, 0, 0, 0.5)';
 
 // create a physics world 1000 meters by 1000 meters
 world = new World(1000, 1000);  
-console.log(world);
-world.add(new CircleBody(0,0,1,1));
-console.log(world);
+let body2 = new CircleBody(0, 0, 1, 1, 1, 0);
+console.log(body2);
+world.addBody(body2);
+
+
 
 // Create a Physics window for rendering world to canvas
 worldView = new WorldView(world, canvas, center=[0,0], pixelsPerMeter=30);
-console.log(worldView); 
-bounds = worldView.getWindowBounds(); 
-console.log(worldView.world.bodies);
-let body = worldView.world.bodies[0];
-worldView.ctx.fillRect(100,100,100,100);
-bodyCoord = worldView.transformCoord([body.pos.x, body.pos.y]);
-console.log(bodyCoord);
-worldView.drawCircleBody(body);
+worldView.render();
+console.log(world);
+world.update(1);
+console.log(world);
+worldView.render();
 
 
 
