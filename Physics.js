@@ -18,6 +18,8 @@ a rectangular body is a physical body
 */
 
 
+/* Math Functions */
+
 
 function Vector(x, y) {
     this.x = x;
@@ -45,23 +47,156 @@ function Vector(x, y) {
         return new Vector(this.x - v.x, this.y - v.y);
     }
 
+    // vector increment
     this.inc = function(v) {
         this.x += v.x;
         this.y += v.y;
     }
-
+    // vector decrement
     this.dec = function(v) {
         this.x -= v.x;
         this.y -= v.y;
     }
 }
 
+/*
+Body has:
+- shape:
+    - circle Circle(radius)
+    - rectangle (width, height)
+    - line segment? (pointA, pointB)
+    - triangle?
+    - composite of other shapes?
+- mass
+- center of mass
+- position
+- velocity
+- acceleration
+- rotation angle
+- rotational velocity
+- rotational acceleration
 
+System has:
+- array of bodies
+- update() {
+    - for each body:
+        - update
+        - test for collisions
+        - while collisions exist:
+            - resolve collisions
+            - solve physics problem
+}
+
+Intersection is function of shape, position, rotation. 
+
+
+*/
+
+
+function World(width, height) {
+    this.width = width;
+    this.height = height;
+    this.bodies = [];
+    this.add = (body) => {
+        this.bodies.push(body);
+    }
+}
+
+
+function WorldView(world, canvas, center=[0,0], pixelsPerMeter=10) {
+    this.world = world;
+    this.canvas = canvas;
+    this.center = new Vector(center[0], center[1]);
+    this.pixelsPerMeter = pixelsPerMeter;
+    this.translationConst = [canvas.width/2 - this.pixelsPerMeter*this.center.x, 
+                             canvas.height/2 + this.pixelsPerMeter*this.center.y]
+    this.ctx = canvas.getContext('2d');
+    this.getWindowBounds = function() {
+        var xmin = this.center[0] - this.canvas.width/this.pixelsPerMeter/2;
+        var xmax = this.center[0] + this.canvas.width/this.pixelsPerMeter/2;
+        var ymin = this.center[1] - this.canvas.height/this.pixelsPerMeter/2;
+        var ymax = this.center[1] + this.canvas.height/this.pixelsPerMeter/2;
+        return [xmin, xmax, ymin, ymax];
+    }
+
+
+    this.transformCoord = function(worldCoord) {
+        /** 
+         * (center_x, center_y) => (canvas.width/2, canvas.height/2)
+         * pixelsPerMeter * (center_x, center_y) + offset = (canvas.width/2, canvas_height/2)
+         * offset = (canvas.width/2, canvas.height/2) - pixelsPerMeter * (center_x, center_y)
+         *        = (canvas.width/2 - pixelsPerMeter * center_x, canvas.height/2 - pixelsPerMeter * center_y)
+        */
+        return [this.translationConst[0] + pixelsPerMeter*worldCoord[0], 
+                this.translationConst[1] - pixelsPerMeter*worldCoord[1]];
+    }
+    this.drawCircleBody = function(circleBody) {
+        let coord = this.transformCoord([circleBody.pos.x, circleBody.pos.y]);
+        let r = this.pixelsPerMeter * circleBody.radius;
+        this.ctx.beginPath();
+        this.ctx.arc(coord[0], coord[1], r, 0, Math.PI *2, false);
+        this.ctx.stroke();
+    }
+
+    this.drawBody = this.drawCircleBody;
+
+    this.render = function() {
+        for (let i = 0; i < this.world.bodies.length; i++){
+            this.drawBody(this.world.bodies[i]); 
+        }
+    }
+
+}
+
+function RigidBody(x, y, shape, m=1, dx=0, dy=0) {
+    this.pos = new Vector(x,y);
+    this.vel = new Vector(dx, dy);
+    this.shape = shape;
+    this.mass = m;
+
+    this.update = function() {
+        this.vel.inc(this.acc);
+        this.pos.inc(this.vel);
+        
+        if (this.pos.x + this.radius >= canvas.width) {
+            this.pos.x = canvas.width - this.radius - 1;
+            this.vel.x *= -1
+        }
+        if (this.pos.x - this.radius <= 0) {
+            this.pos.x = this.radius + 1;
+            this.vel.x *= -1
+        }   
+    
+        if (this.pos.y + this.radius >= canvas.height) {
+            this.pos.y = canvas.height - this.radius - 1;
+            this.vel.y *= -1
+        }
+        if (this.pos.y - this.radius <= 0) {
+            this.pos.y = this.radius + 1;
+            this.vel.y *= -1
+        } 
+        
+    }
+
+    this.resetOnCollision = function(other) {
+        vecdiff = other.pos.subtract(this.pos);
+        dist = vecdiff.getLength();
+        // compute how much they intersect:
+        overlap = dist - (this.radius + other.radius);
+        // adjust pos by half the overlap distance
+        this.pos.inc(vecdiff.scalarMult(1/dist * overlap));
+    }
+
+    this.onCollision = function(other){
+        this.resetOnCollision(other);
+        elasticCircleCollision(this, other);
+    }
+}
 
 function CircleBody(x, y, r, m=1, dx=0, dy=0) {
     this.pos = new Vector(x,y);
     this.vel = new Vector(dx, dy);
-    this.acc = g;
+    this.acc = new Vector(0,0);
     this.radius = r;
     this.mass = m;
     this.dx = dx;

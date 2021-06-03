@@ -104,7 +104,6 @@ function testQuadTree()
     rect4 = new Rect(0, 0, canvas.width/8, canvas.height/8);
     rect4.setCenter(canvas.width/2 + canvas.width/4, canvas.height/2 + canvas.height/4);
     
-
     var rects = [rect1, rect2, rect3, rect4];
     rects.push(new Rect(1,1, canvas.width/9, canvas.width/9));
 
