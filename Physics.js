@@ -1,25 +1,13 @@
 const QUADTREE_MAX_OBJECTS = 10;
 const QUADTREE_MAX_LEVELS = 5;
+const FORCE_THRESHOLD = 0; // Newtons
+const VELOCITY_THRESHOLD = 0; // meters/second
 
-/*
-A physical body has a position
-A physical body has a shape
-A physical body has a mass
-
-A moveable body is a physical body
-
-A circular body is a physical body
-
-a rectangular body is a physical body
-
-
-
-
-*/
-
+const Constants = {
+    g: 9.8,
+}
 
 /* Math Functions */
-
 
 function Vector(x, y) {
     this.x = x;
@@ -47,6 +35,15 @@ function Vector(x, y) {
         return new Vector(this.x - v.x, this.y - v.y);
     }
 
+    this.getUnitVector = function() {
+        return this.scalarMult(1/this.getLength());
+    }
+
+    this.getUnitNormal = function() {
+        let unit = this.getUnitVector();
+        return new Vector(-unit.y, unit.x);      
+    }
+
     // vector increment
     this.inc = function(v) {
         this.x += v.x;
@@ -57,54 +54,34 @@ function Vector(x, y) {
         this.x -= v.x;
         this.y -= v.y;
     }
+    // set vector
+    this.set = function(x, y) {
+        this.x = x;
+        this.y = y;
+    }
 }
-
-/*
-Body has:
-- shape:
-    - circle Circle(radius)
-    - rectangle (width, height)
-    - line segment? (pointA, pointB)
-    - triangle?
-    - composite of other shapes?
-- mass
-- center of mass
-- position
-- velocity
-- acceleration
-- rotation angle
-- rotational velocity
-- rotational acceleration
-
-System has:
-- array of bodies
-- update() {
-    - for each body:
-        - update
-        - test for collisions
-        - while collisions exist:
-            - resolve collisions
-            - solve physics problem
-}
-
-Intersection is function of shape, position, rotation. 
-
-
-*/
 
 
 function World(width, height) {
     this.width = width;
     this.height = height;
     this.bodies = [];
+    this.collisions = true;
+
     this.addBody = (body) => {
         this.bodies.push(body);
+        body.setWorld(this);
     }
     this.update = function(dt) {
         for (let i = 0; i < this.bodies.length; i++) {
             this.bodies[i].update(dt);
-            handleCollisions(this.bodies[i], this.bodies);
+            if (this.collisions) {
+                handleCollisions(this.bodies[i], this.bodies);
+            }
         }
+    }
+    this.setCollisions = function(v) {
+        this.collisions = v;
     }
 }
 
@@ -114,17 +91,20 @@ function WorldView(world, canvas, center=[0,0], pixelsPerMeter=10) {
     this.canvas = canvas;
     this.center = new Vector(center[0], center[1]);
     this.pixelsPerMeter = pixelsPerMeter;
-    this.translationConst = [canvas.width/2 - this.pixelsPerMeter*this.center.x, 
-                             canvas.height/2 + this.pixelsPerMeter*this.center.y]
-    this.ctx = canvas.getContext('2d');
-    this.getWindowBounds = function() {
-        var xmin = this.center[0] - this.canvas.width/this.pixelsPerMeter/2;
-        var xmax = this.center[0] + this.canvas.width/this.pixelsPerMeter/2;
-        var ymin = this.center[1] - this.canvas.height/this.pixelsPerMeter/2;
-        var ymax = this.center[1] + this.canvas.height/this.pixelsPerMeter/2;
-        return [xmin, xmax, ymin, ymax];
+    this.getTranslationConst = function() {
+        return [canvas.width/2 - this.pixelsPerMeter*this.center.x, 
+            canvas.height/2 + this.pixelsPerMeter*this.center.y]
     }
+    this.translationConst = this.getTranslationConst();
+    this.ctx = canvas.getContext('2d');
 
+    this.start = undefined;
+    this.laststamp = undefined;
+
+    this.setCenter = function(center) {
+        this.center = center;
+        this.translationConst = this.getTranslationConst();
+    }
 
     this.transformCoord = function(worldCoord) {
         /** 
@@ -133,25 +113,26 @@ function WorldView(world, canvas, center=[0,0], pixelsPerMeter=10) {
          * offset = (canvas.width/2, canvas.height/2) - pixelsPerMeter * (center_x, center_y)
          *        = (canvas.width/2 - pixelsPerMeter * center_x, canvas.height/2 - pixelsPerMeter * center_y)
         */
-        return [this.translationConst[0] + pixelsPerMeter*worldCoord[0], 
-                this.translationConst[1] - pixelsPerMeter*worldCoord[1]];
+        return new Vector(this.translationConst[0] + pixelsPerMeter*worldCoord.x, 
+                this.translationConst[1] - pixelsPerMeter*worldCoord.y);
     }
+
     this.drawCircleBody = function(circleBody) {
-        let coord = this.transformCoord([circleBody.pos.x, circleBody.pos.y]);
+        let coord = this.transformCoord(circleBody.pos);
         let r = this.pixelsPerMeter * circleBody.radius;
         this.ctx.beginPath();
-        this.ctx.arc(coord[0], coord[1], r, 0, Math.PI *2, false);
+        this.ctx.arc(coord.x, coord.y, r, 0, Math.PI *2, false);
         this.ctx.stroke();
     }
 
     this.drawBody = this.drawCircleBody;
+
 
     this.render = function() {
         for (let i = 0; i < this.world.bodies.length; i++){
             this.drawBody(this.world.bodies[i]); 
         }
     }
-
 }
 
 function RigidBody(x, y, shape, m=1, dx=0, dy=0) {
@@ -205,10 +186,33 @@ function CircleBody(x, y, r, m, vx, vy) {
     this.acc = new Vector(0, 0);
     this.radius = r;
     this.mass = m;
+    this.forceList = [];
 
+    this.world = undefined;
+
+    this.setWorld = function(world) {
+        this.world = world;
+    }
+
+    this.applyForce = function(f) {
+        this.forceList.push(f);
+    }
+    
     this.update = function(dt) {
+        let netForce = new Vector(0, 0);
+        while (this.forceList.length > 0) {
+            netForce.inc(this.forceList.pop());
+        }
+        // if (netForce.getLength() < FORCE_THRESHOLD) {
+        //     netForce.set(0, 0);
+        // }
+        this.acc = netForce.scalarMult(1/this.mass);
         this.vel.inc(this.acc.scalarMult(dt));
+        // if (this.vel.getLength() < VELOCITY_THRESHOLD) {
+        //     this.vel.set(0,0);
+        // }
         this.pos.inc(this.vel.scalarMult(dt));
+
     }
 
     this.resetOnCollision = function(other) {
@@ -297,6 +301,19 @@ function handleCollisions(body, bodies) {
     }
 }
 
+function getNormalForce(body, surfaceVector) {
+    let gravityForce = (new Vector(0, -1)).scalarMult(body.mass * Constants.g);
+    let unitNorm = surfaceVector.getUnitNormal();
+    NormalForce_x = -gravityForce.dotProduct(unitNorm);
+    NormalForce_y = -gravityForce.dotProduct(surfaceVector);
+    return new Vector(NormalForce_x, NormalForce_y);
+}
+
+function getFrictionForce(body, surfaceVector, k) {
+    return getNormalForce(body, surfaceVector).scalarMult(k);
+}
+
+
 function QuadTree(level, bounds) {
     this.MAX_LEVELS = QUADTREE_MAX_LEVELS;
     this.MAX_OBJECTS = QUADTREE_MAX_OBJECTS;
@@ -367,35 +384,12 @@ function getTotalKineticEnergy(bodies) {
     return KE;
 }
 
-
-// Visual code
-function drawVec(ctx, vector, startX, startY) {
-    ctx.beginPath();
-    pos = new Vector(startX, startY);
-    ctx.moveTo(pos.x, pos.y);
-    tipPos = pos.add(vector);
-    ctx.lineTo(tipPos.x, tipPos.y);
-
-    ctx.strokeStyle="white";
-    ctx.stroke();
+function centerOfMass(bodies) {
+    let total_mass = 0;
+    let r = new Vector(0,0);
+    for (let i = 0; i < bodies.length; i++) {
+        total_mass += bodies[i].mass;
+        r.inc(bodies[i].pos.scalarMult(bodies[i].mass));
+    }
+    return r.scalarMult(1/total_mass);
 }
-
-
-// For reference:
-
-// c.fillStyle = 'rgba(255, 0, 0, 0.5)';
-// c.fillRect(100, 100, 100, 100);
-// c.fillRect(50, 200, 30, 40);
-
-// // Line
-// c.beginPath();
-// c.moveTo(50, 300); 
-// c.lineTo(300, 100);
-// c.lineTo(400, 300);
-// c.strokeStyle = "blue";
-// c.stroke();
-
-// // arc or circle
-// c.beginPath();
-// c.arc(300,300, 30, 0, Math.PI *2, false);
-// c.stroke();
