@@ -1,3 +1,5 @@
+var hello = "hello";
+
 var canvas = document.querySelector('canvas');
 canvas.width = 800;
 canvas.height = 600;
