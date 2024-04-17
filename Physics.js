@@ -9,70 +9,76 @@ const Constants = {
 
 /* Math Functions */
 
-function Vector(x, y) {
-    this.x = x;
-    this.y = y;
-    this.getLength = function() {
+class Vector {
+    constructor(x,y) {
+        this.x = x;
+        this.y = y;
+    }
+    
+    getLength() {
         return Math.sqrt((this.x**2 + this.y**2));
     }
-    this.scalarMult = function(s) {
+    scalarMult(s) {
         return new Vector(s*this.x, s*this.y);
     }
 
-    this.dotProduct = function(v) {
+    dotProduct(v) {
         return this.x*v.x + this.y*v.y;
     }
     
-    this.cosTheta = function(v) {
+    cosTheta(v) {
         return this.dotProduct(v) / (this.getLength() * v.getLength())
     }
 
-    this.add = function(v) {
+    add(v) {
         return new Vector(this.x + v.x, this.y + v.y);
     }
 
-    this.subtract = function(v) {
+    subtract(v) {
         return new Vector(this.x - v.x, this.y - v.y);
     }
 
-    this.getUnitVector = function() {
+    getUnitVector() {
         return this.scalarMult(1/this.getLength());
     }
 
-    this.getUnitNormal = function() {
+    getUnitNormal() {
         let unit = this.getUnitVector();
         return new Vector(-unit.y, unit.x);      
     }
 
     // vector increment
-    this.inc = function(v) {
+    inc(v) {
         this.x += v.x;
         this.y += v.y;
     }
     // vector decrement
-    this.dec = function(v) {
+    dec(v) {
         this.x -= v.x;
         this.y -= v.y;
     }
     // set vector
-    this.set = function(x, y) {
+    set(x, y) {
         this.x = x;
         this.y = y;
     }
 }
 
 
-function World(width, height) {
-    this.width = width;
-    this.height = height;
-    this.bodies = [];
-    this.collisions = true;
-
-    this.addBody = (body) => {
+class World {
+    constructor(width, height) {
+        this.width = width;
+        this.height = height;
+        this.bodies = [];
+        this.collisions = true;
+    }
+    
+    addBody(body){
         this.bodies.push(body);
         body.setWorld(this);
     }
-    this.update = function(dt) {
+
+    update(dt) {
         for (let i = 0; i < this.bodies.length; i++) {
             this.bodies[i].update(dt);
             if (this.collisions) {
@@ -80,33 +86,37 @@ function World(width, height) {
             }
         }
     }
-    this.setCollisions = function(v) {
-        this.collisions = v;
+
+    setCollisions(collisionValue) {
+        this.collisions = collisionValue;
     }
 }
 
 
-function WorldView(world, canvas, center=[0,0], pixelsPerMeter=10) {
-    this.world = world;
-    this.canvas = canvas;
-    this.center = new Vector(center[0], center[1]);
-    this.pixelsPerMeter = pixelsPerMeter;
-    this.getTranslationConst = function() {
+class WorldView { 
+    constructor(world, canvas, center=[0,0], pixelsPerMeter=10) {
+        this.world = world;
+        this.canvas = canvas;
+        this.center = new Vector(center[0], center[1]);
+        this.pixelsPerMeter = pixelsPerMeter;
+        this.translationConst = this.getTranslationConst();
+
+        this.ctx = canvas.getContext('2d');
+        this.start = undefined;
+        this.laststamp = undefined;
+    }
+
+    getTranslationConst() {
         return [canvas.width/2 - this.pixelsPerMeter*this.center.x, 
             canvas.height/2 + this.pixelsPerMeter*this.center.y]
     }
-    this.translationConst = this.getTranslationConst();
-    this.ctx = canvas.getContext('2d');
-
-    this.start = undefined;
-    this.laststamp = undefined;
-
-    this.setCenter = function(center) {
+    
+    setCenter(center) {
         this.center = center;
         this.translationConst = this.getTranslationConst();
     }
 
-    this.transformCoord = function(worldCoord) {
+    transformCoord(worldCoord) {
         /** 
          * (center_x, center_y) => (canvas.width/2, canvas.height/2)
          * pixelsPerMeter * (center_x, center_y) + offset = (canvas.width/2, canvas_height/2)
@@ -117,7 +127,7 @@ function WorldView(world, canvas, center=[0,0], pixelsPerMeter=10) {
                 this.translationConst[1] - pixelsPerMeter*worldCoord.y);
     }
 
-    this.drawCircleBody = function(circleBody) {
+    drawCircleBody(circleBody) {
         let coord = this.transformCoord(circleBody.pos);
         let r = this.pixelsPerMeter * circleBody.radius;
         this.ctx.beginPath();
@@ -125,23 +135,26 @@ function WorldView(world, canvas, center=[0,0], pixelsPerMeter=10) {
         this.ctx.stroke();
     }
 
-    this.drawBody = this.drawCircleBody;
+    drawBody(circleBody) {
+        this.drawCircleBody(circleBody); 
+    }
 
-
-    this.render = function() {
+    render() {
         for (let i = 0; i < this.world.bodies.length; i++){
             this.drawBody(this.world.bodies[i]); 
         }
     }
 }
 
-function RigidBody(x, y, shape, m=1, dx=0, dy=0) {
-    this.pos = new Vector(x,y);
-    this.vel = new Vector(dx, dy);
-    this.shape = shape;
-    this.mass = m;
+class RigidBody {
+    constructor(x, y, shape, m=1, dx=0, dy=0) {
+        this.pos = new Vector(x,y);
+        this.vel = new Vector(dx, dy);
+        this.shape = shape;
+        this.mass = m;
+    }
 
-    this.update = function() {
+    update() {
         this.vel.inc(this.acc);
         this.pos.inc(this.vel);
         
@@ -165,7 +178,7 @@ function RigidBody(x, y, shape, m=1, dx=0, dy=0) {
         
     }
 
-    this.resetOnCollision = function(other) {
+    resetOnCollision(other) {
         vecdiff = other.pos.subtract(this.pos);
         dist = vecdiff.getLength();
         // compute how much they intersect:
@@ -174,31 +187,33 @@ function RigidBody(x, y, shape, m=1, dx=0, dy=0) {
         this.pos.inc(vecdiff.scalarMult(1/dist * overlap));
     }
 
-    this.onCollision = function(other){
+    onCollision(other) {
         this.resetOnCollision(other);
         elasticCircleCollision(this, other);
     }
 }
 
-function CircleBody(x, y, r, m, vx, vy) {
-    this.pos = new Vector(x, y);
-    this.vel = new Vector(vx, vy);
-    this.acc = new Vector(0, 0);
-    this.radius = r;
-    this.mass = m;
-    this.forceList = [];
+class CircleBody {
+    constructor(x, y, r, m, vx, vy) {
+        this.pos = new Vector(x, y);
+        this.vel = new Vector(vx, vy);
+        this.acc = new Vector(0, 0);
+        this.radius = r;
+        this.mass = m;
+        this.forceList = [];
 
-    this.world = undefined;
+        this.world = undefined;
+    }
 
-    this.setWorld = function(world) {
+    setWorld(world) {
         this.world = world;
     }
 
-    this.applyForce = function(f) {
+    applyForce(f) {
         this.forceList.push(f);
     }
     
-    this.update = function(dt) {
+    update(dt) {
         let netForce = new Vector(0, 0);
         while (this.forceList.length > 0) {
             netForce.inc(this.forceList.pop());
@@ -215,7 +230,7 @@ function CircleBody(x, y, r, m, vx, vy) {
 
     }
 
-    this.resetOnCollision = function(other) {
+    resetOnCollision(other) {
         vecdiff = other.pos.subtract(this.pos);
         dist = vecdiff.getLength();
         // compute how much they intersect:
@@ -224,7 +239,7 @@ function CircleBody(x, y, r, m, vx, vy) {
         this.pos.inc(vecdiff.scalarMult(1/dist * overlap));
     }
 
-    this.onCollision = function(other){
+    onCollision(other){
         this.resetOnCollision(other);
         elasticCircleCollision(this, other);
     }
