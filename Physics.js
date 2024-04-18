@@ -188,6 +188,7 @@ class RigidBody {
     }
 
     onCollision(other) {
+        console.log("collision!");
         this.resetOnCollision(other);
         elasticCircleCollision(this, other);
     }
@@ -231,10 +232,10 @@ class CircleBody {
     }
 
     resetOnCollision(other) {
-        vecdiff = other.pos.subtract(this.pos);
-        dist = vecdiff.getLength();
+        let vecdiff = other.pos.subtract(this.pos);
+        let dist = vecdiff.getLength();
         // compute how much they intersect:
-        overlap = dist - (this.radius + other.radius);
+        let overlap = dist - (this.radius + other.radius);
         // adjust pos by half the overlap distance
         this.pos.inc(vecdiff.scalarMult(1/dist * overlap));
     }
