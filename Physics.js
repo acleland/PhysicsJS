@@ -247,21 +247,24 @@ class CircleBody {
     
 }
 
-function Rect(x, y, w, h) {
-    this.x = x;
-    this.y = y;
-    this.width = w;
-    this.height = h;
-    this.getCenter = function () {
+class Rect {
+    constructor(x, y, w, h) {
+        this.x = x;
+        this.y = y;
+        this.width = w;
+        this.height = h;
+    }
+
+    getCenter() {
         return new Vector((x+w)/2, (y+h)/2);
     }
 
-    this.setCenter = function(x, y) {
+    setCenter(x, y) {
         this.x = x - this.width/2;
         this.y = y - this.height/2;
     }
 
-    this.fitsIn = function(other) {
+    fitsIn(other) {
         return ((this.x > other.x) && (this.x + this.width < other.x + other.width)
         && (this.y > other.y) && (this.y+this.height < other.y + other.height))
     }
